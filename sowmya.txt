@@ -1,0 +1,128 @@
+1st Question
+
+agent1.sources = source1
+agent1.sinks = sink1
+agent1.channels = channel1
+
+agent1.sources.source1.channels = channel1
+agent1.sinks.sink1.channel = channel1
+
+agent1.sources.source1.type = spooldir
+agent1.sources.source1.spoolDir = /home/sowmya/spooldir
+
+agent1.sinks.sink1.type = logger
+agent1.channels.channel1.type = file
+
+
+-----------------------------------------------------------
+-----------------------------------------------------------
+2nd Question
+
+agent1.sources = source1
+agent1.sinks = sink1
+agent1.channels = channel1
+
+agent1.sources.source1.channels = channel1
+agent1.sinks.sink1.channel = channel1
+
+agent1.sources.source1.type = spooldir
+agent1.sources.source1.spoolDir = /home/sowmya/spooldir
+
+agent1.sinks.sink1.type = hdfs
+agent1.sinks.sink1.hdfs.path = /flume
+agent1.sinks.sink1.hdfs.filePrefix = events
+agent1.sinks.sink1.hdfs.fileSuffix = .log
+agent1.sinks.sink1.hdfs.inUsePrefix = _
+agent1.sinks.sink1.hdfs.fileType = DataStream
+
+agent1.channels.channel1.type = file
+
+------------------------------------------------------------
+------------------------------------------------------------
+3rd Question
+
+airlinesPath="hdfs:///spark/sql/airlines.csv"
+airlines=sc.textFile(airlinesPath)
+print airlines
+
+#collect
+airlines.collect()
+
+#count
+airlines.count()
+
+
+------------------------------------------------------------
+------------------------------------------------------------
+4th Question
+
+twitterPath = "hdfs:///spark/sql/cache-0.json"
+
+from pyspark.sql import SQLContext,Row
+
+sqlC = SQLContext(sc)
+sqlC
+twitterTable = sqlC.read.json(twitterPath)
+twitterTable.registerTempTable("twitTab")
+
+sqlC.sql("Select text, user.screen_name from twitTab where user.screen_name='covid=19' limit 10").collect()
+
+
+
+------------------------------------------------------------
+------------------------------------------------------------
+
+5th Question
+
+from pyspark import SparkContext
+from pyspark.streaming import StreamingContext
+
+sc = SparkContext("local[2]","StreamingErrorCount")
+ssc = StreamingContext(sc,10)
+
+ssc.checkpoint("hdfs:///spark/streaming")
+ds1 = ssc.socketTextStream("localhost",9999)
+count = ds1.flatMap(lambda x:x.split(" ")).filter(lambda word:"ERROR" in word).map(lambda word:(word,1)).reduceByKey(lambda x,y:x+y)
+
+count.pprint()
+ssc.start()
+ssc.awaitTermination()
+
+
+--------------------------------------------------------------
+--------------------------------------------------------------
+
+6th Question
+
+airportsPath="hdfs:///spark/rdd/airports.csv"
+airports=sc.textFile(airportsPath)
+
+from datetime import datetime
+from collections import namedtuple
+
+fields = ('date', 'airline', 'flightnum', 'origin', 'dest', 'dep',
+            'dep_delay', 'arv', 'arv_delay', 'airtime', 'distance')
+
+Airport = namedtuple('Airport', fields, verbose=True)
+
+DATE_FMT = "%Y-%m-%d"
+
+TIME_FMT = "%H%M"
+
+
+def parse(row):
+    row[0] = datetime.strptime(row[0], DATE_FMT).date()
+    row[5] = datetime.strptime(row[5], TIME_FMT).time()
+    row[6] = float(row[6])
+    row[7] = datetime.strptime(row[7], TIME_FMT).time()
+    row[8] = float(row[8])
+    row[9] = float(row[9])
+    row[10] = float(row[10])
+    return Flight(*row[:11])
+airportsParsed=airports.map(lambda x: x.split(',')).map(parse)
+
+sumCount=airportsParsed.map(lambda x:x.dep_delay).aggregate((0,0),
+                                                          (lambda acc,value: (acc[0]+value, acc[1]+1)),
+                                                          (lambda acc1,acc2:(acc1[0]+acc2[0],acc1[1]+acc2[1])))
+
+print "The average delay is "+str(sumCount[0]/float(sumCount[1]))
